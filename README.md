@@ -16,15 +16,22 @@ request hit it in your terminal, and forward or replay them to your local app.
 ## Install
 
 ```sh
-npm install
-npm run build
-npm link        # optional: makes `huk` available globally
+npm install -g @naamanu/huk
+huk listen
+```
+
+### From source
+
+```sh
+bun install        # or npm install
+bun run build
+npm link           # optional: makes `huk` available globally
 ```
 
 Or run without building during development:
 
 ```sh
-npm run dev -- listen --port 4000
+bun run dev -- listen --port 4000
 ```
 
 ## Usage
@@ -70,6 +77,19 @@ huk replay 1 --to http://localhost:3000
 and appended to an NDJSON file in `~/.huk/`. `--tunnel` shells out to `ngrok`
 (polling its local agent API at `127.0.0.1:4040`) or `cloudflared`.
 
+## Releasing
+
+Publishing is automated via GitHub Actions (`.github/workflows/release.yml`):
+
+1. Bump the version in `package.json` (e.g. `0.1.0` → `0.1.1`) and commit.
+2. Push, then create a **GitHub Release** with tag `v<version>` (e.g. `v0.1.1`).
+3. The workflow builds and runs `npm publish --provenance --access public`,
+   pushing `@naamanu/huk@<version>` to npm. The tag must match the
+   `package.json` version or the job fails.
+
+Requires an npm **Automation** token stored as the repo secret `NPM_TOKEN`.
+
 ## License
 
 MIT
+

@@ -1,19 +1,37 @@
 {
-  "name": "huk",
+  "name": "@naamanu/huk",
   "version": "0.1.0",
   "description": "A simple CLI to capture, inspect, forward and replay webhook requests (a tiny usewebhook.com).",
   "type": "module",
+  "author": "Nana Adjei Manu",
+  "license": "MIT",
+  "homepage": "https://github.com/naamanu/huk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naamanu/huk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/naamanu/huk/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "huk": "./dist/cli.js"
   },
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsup src/cli.ts --format esm --clean --target node20",
     "start": "node dist/cli.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "webhook",
@@ -23,7 +41,6 @@
     "tunnel",
     "ngrok"
   ],
-  "license": "MIT",
   "dependencies": {
     "commander": "^12.1.0",
     "picocolors": "^1.1.1"
