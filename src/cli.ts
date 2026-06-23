@@ -50,11 +50,20 @@ program
     positiveInt,
     30000,
   )
+  .option(
+    "--respond-with-forward",
+    "return the forwarded app's response to the sender (requires --forward)",
+    false,
+  )
   .option("--status <code>", "response status to return to senders", "200")
   .option("--body <string>", "response body to return to senders", "ok")
   .option("--content-type <type>", "response content-type", "text/plain")
   .option("--no-store", "do not persist captured requests")
   .action(async (opts) => {
+    if (opts.respondWithForward && !opts.forward) {
+      console.error(pc.red("--respond-with-forward requires --forward"));
+      process.exit(1);
+    }
     const port = Number(opts.port);
     const status = Number(opts.status);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -70,6 +79,7 @@ program
       tunnel: Boolean(opts.tunnel),
       forward: opts.forward,
       timeout: opts.timeout,
+      respondWithForward: Boolean(opts.respondWithForward),
       status,
       body: opts.body,
       contentType: opts.contentType,

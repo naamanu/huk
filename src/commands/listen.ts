@@ -12,11 +12,21 @@ export interface ListenOptions {
   tunnel: boolean;
   forward?: string;
   timeout: number;
+  respondWithForward: boolean;
   status: number;
   body: string;
   contentType: string;
   store: boolean;
 }
+
+/** Headers that must not be echoed verbatim when relaying a response. */
+const ECHO_STRIP_HEADERS = new Set([
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection",
+  "keep-alive",
+]);
 
 export async function runListen(opts: ListenOptions): Promise<void> {
   let id = nextId();
@@ -50,6 +60,27 @@ export async function runListen(opts: ListenOptions): Promise<void> {
 
     console.log(summaryLine(record));
 
+    if (opts.respondWithForward) {
+      const f = record.forwarded;
+      if (f && !f.error) {
+        const headers: Record<string, string> = {};
+        for (const [k, v] of Object.entries(f.responseHeaders ?? {})) {
+          if (!ECHO_STRIP_HEADERS.has(k.toLowerCase())) headers[k] = v;
+        }
+        const echoed = Buffer.from(
+          f.responseBody ?? "",
+          f.responseBodyEncoding === "base64" ? "base64" : "utf8",
+        );
+        res.writeHead(f.status ?? 200, headers);
+        res.end(echoed);
+      } else {
+        // Forward failed (or didn't run): surface a gateway error.
+        res.writeHead(502, { "content-type": "text/plain" });
+        res.end(`huk: forward failed: ${f?.error ?? "no downstream"}`);
+      }
+      return;
+    }
+
     res.writeHead(opts.status, { "content-type": opts.contentType });
     res.end(opts.body);
   });
@@ -78,9 +109,15 @@ export async function runListen(opts: ListenOptions): Promise<void> {
       `${pc.dim("Forward:")} ${pc.yellow(opts.forward)} ${pc.dim(`(timeout ${opts.timeout}ms)`)}`,
     );
   }
-  console.log(
-    `${pc.dim("Respond:")} ${opts.status} ${pc.dim(opts.contentType)}`,
-  );
+  if (opts.respondWithForward) {
+    console.log(
+      `${pc.dim("Respond:")} ${pc.dim("relaying the forwarded app's response (502 on failure)")}`,
+    );
+  } else {
+    console.log(
+      `${pc.dim("Respond:")} ${opts.status} ${pc.dim(opts.contentType)}`,
+    );
+  }
   if (opts.store) {
     console.log(pc.dim(`Saving to ${storePath}`));
   } else {
