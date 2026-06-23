@@ -20,14 +20,18 @@ export async function runReplay(
     return;
   }
 
-  // Rebuild path + query string from the stored record.
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(record.query)) {
-    if (Array.isArray(v)) v.forEach((val) => params.append(k, val));
-    else params.append(k, v);
+  // Prefer the raw URL captured verbatim (exact encoding & order). Fall back to
+  // rebuilding from parsed query for records stored before `url` was tracked.
+  let path = record.url;
+  if (!path) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(record.query)) {
+      if (Array.isArray(v)) v.forEach((val) => params.append(k, val));
+      else params.append(k, v);
+    }
+    const qs = params.toString();
+    path = record.path + (qs ? `?${qs}` : "");
   }
-  const qs = params.toString();
-  const path = record.path + (qs ? `?${qs}` : "");
 
   const bodyText = decodeBody(record);
   const bodyBuf = Buffer.from(

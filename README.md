@@ -100,6 +100,11 @@ forwarded to your app with `fetch` (subject to `--timeout`), and — unless
 Each captured request gets a sequential id you can pass to `huk show` and
 `huk replay`.
 
+Forwarding records the downstream response too (status, headers, and body —
+body capped at 64 KB), shown by `huk show`. `huk replay` re-sends the **exact**
+original request target (path + query, byte-for-byte). Binary bodies are stored
+as base64 and displayed as a size + hex preview rather than garbled text.
+
 With `--tunnel`, huk tries `ngrok` first (spawning it and polling its local
 agent API at `127.0.0.1:4040` for the public URL), then falls back to
 `cloudflared`. If neither binary is installed it prints an install hint and

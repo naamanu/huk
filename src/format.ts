@@ -1,5 +1,5 @@
 import pc from "picocolors";
-import type { CapturedRequest } from "./types.js";
+import type { BodyEncoding, CapturedRequest } from "./types.js";
 
 /** Color a method token by verb. */
 function colorMethod(method: string): string {
@@ -84,6 +84,30 @@ function headerValue(v: string | string[]): string {
   return Array.isArray(v) ? v.join(", ") : v;
 }
 
+/** First `max` bytes of a buffer as spaced hex, with an ellipsis if longer. */
+function hexPreview(buf: Buffer, max = 64): string {
+  const hex = (buf.subarray(0, max).toString("hex").match(/../g) ?? []).join(" ");
+  return buf.length > max ? `${hex} …` : hex;
+}
+
+/**
+ * Render a stored body for display: pretty JSON / raw text for UTF-8, or a size
+ * + hex preview for binary (base64) so binary payloads aren't shown as garbage.
+ */
+function renderBody(
+  body: string,
+  encoding: BodyEncoding,
+  contentType: string,
+): string {
+  if (encoding === "none" || !body) return pc.dim("(empty)");
+  if (encoding === "base64") {
+    const buf = Buffer.from(body, "base64");
+    const meta = `(binary, ${buf.length} bytes${contentType ? `, ${contentType}` : ""})`;
+    return pc.dim(meta) + "\n" + pc.dim("hex: ") + hexPreview(buf);
+  }
+  return formatBody(body, contentType);
+}
+
 /** Full multi-line detail block for `huk show`. */
 export function detailBlock(req: CapturedRequest): string {
   const lines: string[] = [];
@@ -103,6 +127,26 @@ export function detailBlock(req: CapturedRequest): string {
       ? pc.red(`failed: ${f.error}`)
       : `${colorStatus(f.status ?? 0)} ${pc.dim(`${f.durationMs}ms`)}`;
     lines.push(pc.dim(`  forwarded → ${f.target}: `) + desc);
+
+    if (!f.error && f.responseHeaders && Object.keys(f.responseHeaders).length) {
+      lines.push(pc.dim("    response headers:"));
+      for (const [k, v] of Object.entries(f.responseHeaders)) {
+        lines.push(`      ${pc.cyan(k)}: ${v}`);
+      }
+    }
+    if (!f.error && f.responseBody) {
+      const label = f.responseTruncated
+        ? "response body (truncated):"
+        : "response body:";
+      lines.push(pc.dim(`    ${label}`));
+      const ct = f.responseHeaders?.["content-type"] ?? "";
+      const text = renderBody(
+        f.responseBody,
+        f.responseBodyEncoding ?? "utf8",
+        ct,
+      );
+      for (const line of text.split("\n")) lines.push("      " + line);
+    }
   }
 
   const queryKeys = Object.keys(req.query);
@@ -127,7 +171,7 @@ export function detailBlock(req: CapturedRequest): string {
     : `${pc.bold("  Body")} ${pc.dim(`(${bytes} bytes)`)}`;
   lines.push(bodyHeader);
   const contentType = headerValue(req.headers["content-type"] ?? "");
-  const body = formatBody(decodeBody(req), contentType);
+  const body = renderBody(req.body, req.bodyEncoding, contentType);
   for (const line of body.split("\n")) {
     lines.push("    " + line);
   }

@@ -7,6 +7,13 @@ export interface ForwardResult {
   status?: number;
   durationMs?: number;
   error?: string;
+  /** Response headers returned by the downstream target. */
+  responseHeaders?: Record<string, string>;
+  /** Downstream response body (utf8, or base64 when binary), capped. */
+  responseBody?: string;
+  responseBodyEncoding?: BodyEncoding;
+  /** True if the downstream response body exceeded the capture cap. */
+  responseTruncated?: boolean;
 }
 
 /** Response the CLI returned to the original sender. */
@@ -21,6 +28,8 @@ export interface CapturedRequest {
   timestamp: string; // ISO 8601
   method: string;
   path: string; // path without query string
+  /** Raw request target exactly as received (path + query), for exact replay. */
+  url: string;
   query: Record<string, string | string[]>;
   headers: Record<string, string | string[]>;
   bodyEncoding: BodyEncoding;
