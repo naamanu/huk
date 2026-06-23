@@ -475,3 +475,36 @@ test("binary bodies are stored as base64 and shown as a hex preview", async () =
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("list filters by method, path, status, and since", async () => {
+  const home = await makeHome();
+  const server = await startListen([], home);
+  try {
+    await fetch(`${server.url}/one`, { method: "POST", body: "x" });
+    await fetch(`${server.url}/two`, { method: "GET" });
+    await fetch(`${server.url}/three`, { method: "POST", body: "y" });
+    await server.stop();
+
+    const byMethod = await runCli(["list", "--method", "post"], home);
+    assert.match(byMethod.stdout, /\/one/);
+    assert.match(byMethod.stdout, /\/three/);
+    assert.doesNotMatch(byMethod.stdout, /\/two/);
+
+    const byPath = await runCli(["list", "--path", "two"], home);
+    assert.match(byPath.stdout, /\/two/);
+    assert.doesNotMatch(byPath.stdout, /\/one/);
+
+    // All responses are 200 by default, so 599 matches nothing.
+    const noStatus = await runCli(["list", "--status", "599"], home);
+    assert.match(noStatus.stdout, /No requests match/i);
+
+    const sinceOk = await runCli(["list", "--since", "1h"], home);
+    assert.match(sinceOk.stdout, /\/one/);
+
+    const badSince = await runCli(["list", "--since", "bogus"], home);
+    assert.notEqual(badSince.code, 0);
+    assert.match(badSince.stderr, /30s|10m|2h|1d/);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
