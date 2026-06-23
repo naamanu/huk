@@ -133,6 +133,28 @@ async function startSink() {
   };
 }
 
+/** A sink that accepts connections but never responds (to test timeouts). */
+async function startHangingSink() {
+  const port = await freePort();
+  const sockets = new Set();
+  const server = http.createServer(() => {
+    /* intentionally never responds */
+  });
+  server.on("connection", (s) => {
+    sockets.add(s);
+    s.on("close", () => sockets.delete(s));
+  });
+  await new Promise((resolve) => server.listen(port, resolve));
+  return {
+    url: `http://localhost:${port}`,
+    stop: () =>
+      new Promise((resolve) => {
+        for (const s of sockets) s.destroy();
+        server.close(resolve);
+      }),
+  };
+}
+
 test("huk --version prints a semver", async () => {
   const home = await makeHome();
   try {
@@ -284,6 +306,89 @@ test("--no-store skips persistence", async () => {
     assert.equal(existsSync(storeFile(home)), false);
     const list = await runCli(["list"], home);
     assert.match(list.stdout, /No requests/i);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("--forward aborts a hung downstream after --timeout", async () => {
+  const home = await makeHome();
+  const sink = await startHangingSink();
+  const server = await startListen(["--forward", sink.url, "--timeout", "300"], home);
+  try {
+    const start = Date.now();
+    const res = await fetch(`${server.url}/x`, { method: "POST", body: "hi" });
+    const elapsed = Date.now() - start;
+
+    // huk still answers the original caller despite the hung downstream.
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), "ok");
+    assert.ok(elapsed < 3000, `caller waited ${elapsed}ms (should be ~300ms)`);
+
+    const [rec] = await readStore(home);
+    assert.ok(rec.forwarded);
+    assert.match(rec.forwarded.error, /timed out/i);
+  } finally {
+    await server.stop();
+    await sink.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("oversized bodies are truncated and flagged", async () => {
+  const home = await makeHome();
+  const server = await startListen([], home);
+  try {
+    const big = "a".repeat(6 * 1024 * 1024); // 6 MB, over the 5 MB cap
+    const res = await fetch(`${server.url}/big`, { method: "POST", body: big });
+    assert.equal(res.status, 200);
+
+    const [rec] = await readStore(home);
+    assert.equal(rec.truncated, true);
+    assert.equal(rec.bytes, 6 * 1024 * 1024);
+    // Stored body is capped at exactly 5 MB.
+    assert.equal(Buffer.byteLength(rec.body, "utf8"), 5 * 1024 * 1024);
+
+    const show = await runCli(["show", "1"], home);
+    assert.match(show.stdout, /truncated/i);
+  } finally {
+    await server.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("list --limit rejects non-positive and non-numeric values", async () => {
+  const home = await makeHome();
+  try {
+    for (const bad of ["0", "-3", "abc"]) {
+      const r = await runCli(["list", "--limit", bad], home);
+      assert.notEqual(r.code, 0, `--limit ${bad} should fail`);
+      assert.match(r.stderr, /positive integer/i);
+    }
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("show --json prints the raw record for scripting", async () => {
+  const home = await makeHome();
+  const server = await startListen([], home);
+  try {
+    await fetch(`${server.url}/j?a=1`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ n: 1 }),
+    });
+    await server.stop();
+
+    const r = await runCli(["show", "1", "--json"], home);
+    assert.equal(r.code, 0);
+    const obj = JSON.parse(r.stdout);
+    assert.equal(obj.id, 1);
+    assert.equal(obj.method, "POST");
+    assert.equal(obj.path, "/j");
+    assert.equal(obj.truncated, false);
+    assert.equal(typeof obj.bytes, "number");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

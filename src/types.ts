@@ -26,6 +26,10 @@ export interface CapturedRequest {
   bodyEncoding: BodyEncoding;
   /** Body as a string (utf8) or base64 depending on `bodyEncoding`. */
   body: string;
+  /** Total body bytes received from the sender (before any capping). */
+  bytes: number;
+  /** True if the body exceeded the capture cap and the stored body is partial. */
+  truncated: boolean;
   remoteAddr: string;
   response: ResponseInfo;
   forwarded?: ForwardResult;

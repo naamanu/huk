@@ -8,8 +8,7 @@ export function runList(opts: { limit?: number }): void {
     console.log(pc.dim("No requests captured yet. Run `huk listen` first."));
     return;
   }
-  const slice =
-    opts.limit && opts.limit > 0 ? records.slice(-opts.limit) : records;
+  const slice = opts.limit ? records.slice(-opts.limit) : records;
   for (const r of slice) {
     const time = pc.dim(new Date(r.timestamp).toLocaleString());
     console.log(`${summaryLine(r)}  ${time}`);

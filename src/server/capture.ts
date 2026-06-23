@@ -3,21 +3,41 @@ import type { BodyEncoding, CapturedRequest, ResponseInfo } from "../types.js";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB cap to keep things simple
 
-/** Read the raw request body into a Buffer, capped at MAX_BODY_BYTES. */
-function readBody(req: IncomingMessage): Promise<Buffer> {
+interface ReadResult {
+  /** Stored body bytes, capped at MAX_BODY_BYTES. */
+  buffer: Buffer;
+  /** Total bytes received from the sender, before capping. */
+  totalBytes: number;
+  /** True if the body was capped (stored buffer is partial). */
+  truncated: boolean;
+}
+
+/** Read the request body, capping the stored bytes at MAX_BODY_BYTES. */
+function readBody(req: IncomingMessage): Promise<ReadResult> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    let size = 0;
+    let stored = 0;
+    let total = 0;
     let truncated = false;
     req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size <= MAX_BODY_BYTES) {
+      total += chunk.length;
+      const room = MAX_BODY_BYTES - stored;
+      if (room <= 0) {
+        truncated = true;
+        return;
+      }
+      if (chunk.length <= room) {
         chunks.push(chunk);
-      } else if (!truncated) {
+        stored += chunk.length;
+      } else {
+        chunks.push(chunk.subarray(0, room));
+        stored += room;
         truncated = true;
       }
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("end", () =>
+      resolve({ buffer: Buffer.concat(chunks), totalBytes: total, truncated }),
+    );
     req.on("error", reject);
   });
 }
@@ -57,7 +77,7 @@ export async function capture(
     query[key] = values.length > 1 ? values : values[0]!;
   }
 
-  const rawBody = await readBody(req);
+  const { buffer: rawBody, totalBytes, truncated } = await readBody(req);
   const { encoding, body } = encodeBody(rawBody);
 
   const record: CapturedRequest = {
@@ -69,6 +89,8 @@ export async function capture(
     headers: normalizeHeaders(req.headers),
     bodyEncoding: encoding,
     body,
+    bytes: totalBytes,
+    truncated,
     remoteAddr: req.socket.remoteAddress ?? "unknown",
     response,
   };

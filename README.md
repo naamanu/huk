@@ -58,14 +58,16 @@ huk listen [options]            # start the capture server (main command)
   -p, --port <n>                # default 4000
   -t, --tunnel                  # expose a public URL via ngrok/cloudflared
   -f, --forward <url>           # proxy each request to this URL too
+  --timeout <ms>                # forward timeout, default 30000
   --status <code>               # response status (default 200)
   --body <string>               # response body (default "ok")
   --content-type <type>         # response content-type (default text/plain)
   --no-store                    # don't persist
 
-huk list [-n <limit>]           # list captured requests
-huk show <id>                   # full detail of one request
+huk list [-n <limit>]           # list captured requests (limit must be > 0)
+huk show <id> [--json]          # full detail of one request (--json for scripting)
 huk replay <id> --to <url>      # re-send a stored request
+  [--timeout <ms>]              # replay timeout, default 30000
 huk clear                       # wipe history
 ```
 
@@ -91,10 +93,12 @@ huk replay 1 --to http://localhost:3000
 ## How it works
 
 `huk listen` runs a Node `http` server. Each request is read (body capped at
-5 MB), printed as a colored one-line summary, optionally forwarded to your app
-with `fetch`, and — unless `--no-store` is set — appended as one JSON line to
-`~/.huk/requests.ndjson`. Each captured request gets a sequential id you can
-pass to `huk show` and `huk replay`.
+5 MB — larger bodies are stored partially and flagged `truncated`, with the
+original byte count recorded), printed as a colored one-line summary, optionally
+forwarded to your app with `fetch` (subject to `--timeout`), and — unless
+`--no-store` is set — appended as one JSON line to `~/.huk/requests.ndjson`.
+Each captured request gets a sequential id you can pass to `huk show` and
+`huk replay`.
 
 With `--tunnel`, huk tries `ngrok` first (spawning it and polling its local
 agent API at `127.0.0.1:4040` for the public URL), then falls back to

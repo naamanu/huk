@@ -11,6 +11,8 @@ const STRIP_HEADERS = new Set([
 /**
  * Proxy a captured request to `target`, returning status + latency.
  * `path` is the original path+query so downstream routing is preserved.
+ * Aborts (and reports an error) if the target doesn't respond within
+ * `timeoutMs`, so a hung downstream never blocks the caller indefinitely.
  */
 export async function forward(
   target: string,
@@ -18,6 +20,7 @@ export async function forward(
   path: string,
   headers: Record<string, string | string[]>,
   body: Buffer,
+  timeoutMs: number,
 ): Promise<ForwardResult> {
   const base = target.replace(/\/$/, "");
   const url = base + path;
@@ -36,6 +39,7 @@ export async function forward(
       method,
       headers: outHeaders,
       body: hasBody ? new Uint8Array(body) : undefined,
+      signal: AbortSignal.timeout(timeoutMs),
     });
     // Drain the body so the socket can close cleanly.
     await res.arrayBuffer().catch(() => undefined);
@@ -45,10 +49,17 @@ export async function forward(
       durationMs: Math.round(performance.now() - start),
     };
   } catch (err) {
+    const timedOut =
+      err instanceof Error &&
+      (err.name === "TimeoutError" || err.name === "AbortError");
     return {
       target,
       durationMs: Math.round(performance.now() - start),
-      error: err instanceof Error ? err.message : String(err),
+      error: timedOut
+        ? `timed out after ${timeoutMs}ms`
+        : err instanceof Error
+          ? err.message
+          : String(err),
     };
   }
 }
