@@ -5,7 +5,7 @@ import { forward } from "../server/forward.js";
 
 export async function runReplay(
   idArg: string,
-  opts: { to: string },
+  opts: { to: string; timeout: number },
 ): Promise<void> {
   const id = Number(idArg);
   if (!Number.isInteger(id)) {
@@ -35,6 +35,14 @@ export async function runReplay(
     record.bodyEncoding === "base64" ? "base64" : "utf8",
   );
 
+  if (record.truncated) {
+    console.error(
+      pc.yellow(
+        `! body was truncated on capture (${bodyBuf.length} of ${record.bytes} bytes); replaying the partial body`,
+      ),
+    );
+  }
+
   console.log(
     pc.dim(`Replaying #${id} ${record.method} ${path} → ${opts.to}`),
   );
@@ -44,6 +52,7 @@ export async function runReplay(
     path,
     record.headers,
     bodyBuf,
+    opts.timeout,
   );
 
   if (result.error) {

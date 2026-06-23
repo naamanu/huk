@@ -57,6 +57,9 @@ export function summaryLine(req: CapturedRequest): string {
       );
     }
   }
+  if (req.truncated) {
+    parts.push(pc.yellow("(truncated)"));
+  }
   return parts.join("  ");
 }
 
@@ -118,7 +121,11 @@ export function detailBlock(req: CapturedRequest): string {
   }
 
   lines.push("");
-  lines.push(pc.bold("  Body"));
+  const bytes = req.bytes ?? 0;
+  const bodyHeader = req.truncated
+    ? `${pc.bold("  Body")} ${pc.yellow(`(truncated — ${bytes} bytes received, partial stored)`)}`
+    : `${pc.bold("  Body")} ${pc.dim(`(${bytes} bytes)`)}`;
+  lines.push(bodyHeader);
   const contentType = headerValue(req.headers["content-type"] ?? "");
   const body = formatBody(decodeBody(req), contentType);
   for (const line of body.split("\n")) {

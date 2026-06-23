@@ -11,6 +11,7 @@ export interface ListenOptions {
   port: number;
   tunnel: boolean;
   forward?: string;
+  timeout: number;
   status: number;
   body: string;
   contentType: string;
@@ -35,6 +36,7 @@ export async function runListen(opts: ListenOptions): Promise<void> {
         originalPath,
         record.headers,
         rawBody,
+        opts.timeout,
       );
     }
 
@@ -72,7 +74,9 @@ export async function runListen(opts: ListenOptions): Promise<void> {
   }
 
   if (opts.forward) {
-    console.log(`${pc.dim("Forward:")} ${pc.yellow(opts.forward)}`);
+    console.log(
+      `${pc.dim("Forward:")} ${pc.yellow(opts.forward)} ${pc.dim(`(timeout ${opts.timeout}ms)`)}`,
+    );
   }
   console.log(
     `${pc.dim("Respond:")} ${opts.status} ${pc.dim(opts.contentType)}`,
