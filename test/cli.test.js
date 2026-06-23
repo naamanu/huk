@@ -526,6 +526,61 @@ test("show redacts sensitive headers by default; --no-redact reveals them", asyn
   }
 });
 
+test("--respond-with-forward relays the downstream response to the caller", async () => {
+  const home = await makeHome();
+  const sink = await startSink({
+    status: 418,
+    headers: { "content-type": "application/json", "x-sink": "yes" },
+    body: '{"teapot":true}',
+  });
+  const server = await startListen(
+    ["--forward", sink.url, "--respond-with-forward"],
+    home,
+  );
+  try {
+    const res = await fetch(`${server.url}/r`, { method: "POST", body: "hi" });
+    assert.equal(res.status, 418);
+    assert.equal(res.headers.get("x-sink"), "yes");
+    assert.equal(await res.text(), '{"teapot":true}');
+  } finally {
+    await server.stop();
+    await sink.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("--respond-with-forward returns 502 when the downstream fails", async () => {
+  const home = await makeHome();
+  const sink = await startHangingSink();
+  const server = await startListen(
+    ["--forward", sink.url, "--respond-with-forward", "--timeout", "300"],
+    home,
+  );
+  try {
+    const res = await fetch(`${server.url}/r`, { method: "POST", body: "hi" });
+    assert.equal(res.status, 502);
+    assert.match(await res.text(), /forward failed/i);
+  } finally {
+    await server.stop();
+    await sink.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("--respond-with-forward requires --forward", async () => {
+  const home = await makeHome();
+  try {
+    const r = await runCli(
+      ["listen", "--port", "5999", "--respond-with-forward"],
+      home,
+    );
+    assert.notEqual(r.code, 0);
+    assert.match(r.stderr, /requires --forward/i);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("list filters by method, path, status, and since", async () => {
   const home = await makeHome();
   const server = await startListen([], home);

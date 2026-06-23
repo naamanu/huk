@@ -60,6 +60,7 @@ huk listen [options]            # start the capture server (main command)
   -t, --tunnel                  # expose a public URL via ngrok/cloudflared
   -f, --forward <url>           # proxy each request to this URL too
   --timeout <ms>                # forward timeout, default 30000
+  --respond-with-forward        # return the forwarded app's response (needs -f)
   --status <code>               # response status (default 200)
   --body <string>               # response body (default "ok")
   --content-type <type>         # response content-type (default text/plain)
@@ -110,7 +111,10 @@ Each captured request gets a sequential id you can pass to `huk show` and
 `huk replay`.
 
 Forwarding records the downstream response too (status, headers, and body —
-body capped at 64 KB), shown by `huk show`. `huk replay` re-sends the **exact**
+body capped at 64 KB), shown by `huk show`. With `--respond-with-forward`, huk
+relays that downstream response back to the original sender instead of the
+canned `--status`/`--body` (and returns `502` if the forward fails). `huk replay`
+re-sends the **exact**
 original request target (path + query, byte-for-byte). Binary bodies are stored
 as base64 and displayed as a size + hex preview rather than garbled text.
 
