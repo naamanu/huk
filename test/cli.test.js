@@ -113,7 +113,12 @@ async function startListen(extraArgs, home) {
 }
 
 /** Start a downstream sink server that records what it receives. */
-async function startSink() {
+async function startSink(respond = {}) {
+  const {
+    status = 200,
+    headers = { "content-type": "text/plain" },
+    body: respBody = "sink-ok",
+  } = respond;
   const port = await freePort();
   const received = [];
   const server = http.createServer((req, res) => {
@@ -121,8 +126,8 @@ async function startSink() {
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       received.push({ method: req.method, url: req.url, body });
-      res.writeHead(200, { "content-type": "text/plain" });
-      res.end("sink-ok");
+      res.writeHead(status, headers);
+      res.end(respBody);
     });
   });
   await new Promise((resolve) => server.listen(port, resolve));
@@ -389,6 +394,83 @@ test("show --json prints the raw record for scripting", async () => {
     assert.equal(obj.path, "/j");
     assert.equal(obj.truncated, false);
     assert.equal(typeof obj.bytes, "number");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("replay re-sends the exact original URL (encoding + order preserved)", async () => {
+  const home = await makeHome();
+  const server = await startListen([], home);
+  try {
+    // Out-of-order keys and a percent-encoded value.
+    await fetch(`${server.url}/p?b=2&a=1&x=%20hi`, { method: "POST", body: "x" });
+    await server.stop();
+
+    const [rec] = await readStore(home);
+    assert.equal(rec.url, "/p?b=2&a=1&x=%20hi");
+
+    const sink = await startSink();
+    try {
+      const replay = await runCli(["replay", "1", "--to", sink.url], home);
+      assert.equal(replay.code, 0);
+      // Replayed URL is byte-identical to what was captured.
+      assert.equal(sink.received[0].url, rec.url);
+    } finally {
+      await sink.stop();
+    }
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("forward captures the downstream response body and headers", async () => {
+  const home = await makeHome();
+  const sink = await startSink({
+    status: 201,
+    headers: { "content-type": "application/json", "x-sink": "yes" },
+    body: '{"downstream":true}',
+  });
+  const server = await startListen(["--forward", sink.url], home);
+  try {
+    await fetch(`${server.url}/h`, { method: "POST", body: "hi" });
+    await server.stop();
+
+    const [rec] = await readStore(home);
+    assert.equal(rec.forwarded.status, 201);
+    assert.equal(rec.forwarded.responseBody, '{"downstream":true}');
+    assert.equal(rec.forwarded.responseHeaders["x-sink"], "yes");
+
+    const show = await runCli(["show", "1"], home);
+    assert.match(show.stdout, /response body/);
+    assert.match(show.stdout, /downstream/);
+    assert.match(show.stdout, /x-sink/);
+  } finally {
+    await sink.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("binary bodies are stored as base64 and shown as a hex preview", async () => {
+  const home = await makeHome();
+  const server = await startListen([], home);
+  try {
+    const bin = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x80, 0x7f]);
+    await fetch(`${server.url}/bin`, {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream" },
+      body: bin,
+    });
+    await server.stop();
+
+    const [rec] = await readStore(home);
+    assert.equal(rec.bodyEncoding, "base64");
+    assert.equal(Buffer.from(rec.body, "base64").length, bin.length);
+
+    const show = await runCli(["show", "1"], home);
+    assert.match(show.stdout, /binary/i);
+    assert.match(show.stdout, /hex:/);
+    assert.match(show.stdout, /00 01 ff fe/);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

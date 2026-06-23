@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
-import type { BodyEncoding, CapturedRequest, ResponseInfo } from "../types.js";
+import type { CapturedRequest, ResponseInfo } from "../types.js";
+import { encodeBody } from "./body.js";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB cap to keep things simple
 
@@ -42,17 +43,6 @@ function readBody(req: IncomingMessage): Promise<ReadResult> {
   });
 }
 
-/** Decide how to encode a body buffer for storage/printing. */
-function encodeBody(buf: Buffer): { encoding: BodyEncoding; body: string } {
-  if (buf.length === 0) return { encoding: "none", body: "" };
-  const text = buf.toString("utf8");
-  // Round-trip check: if it survives utf8 encoding, treat it as text.
-  if (Buffer.from(text, "utf8").equals(buf)) {
-    return { encoding: "utf8", body: text };
-  }
-  return { encoding: "base64", body: buf.toString("base64") };
-}
-
 function normalizeHeaders(
   raw: IncomingMessage["headers"],
 ): Record<string, string | string[]> {
@@ -85,6 +75,7 @@ export async function capture(
     timestamp: new Date().toISOString(),
     method: req.method ?? "GET",
     path: url.pathname,
+    url: req.url ?? "/",
     query,
     headers: normalizeHeaders(req.headers),
     bodyEncoding: encoding,

@@ -1,4 +1,5 @@
 import type { ForwardResult } from "../types.js";
+import { encodeBody } from "./body.js";
 
 /** Headers that must not be forwarded verbatim to the downstream target. */
 const STRIP_HEADERS = new Set([
@@ -7,6 +8,9 @@ const STRIP_HEADERS = new Set([
   "connection",
   "transfer-encoding",
 ]);
+
+/** Cap on how much of a downstream response body we capture. */
+const MAX_RESPONSE_BYTES = 64 * 1024;
 
 /**
  * Proxy a captured request to `target`, returning status + latency.
@@ -41,12 +45,29 @@ export async function forward(
       body: hasBody ? new Uint8Array(body) : undefined,
       signal: AbortSignal.timeout(timeoutMs),
     });
-    // Drain the body so the socket can close cleanly.
-    await res.arrayBuffer().catch(() => undefined);
+
+    const full = Buffer.from(
+      await res.arrayBuffer().catch(() => new ArrayBuffer(0)),
+    );
+    const responseTruncated = full.length > MAX_RESPONSE_BYTES;
+    const captured = responseTruncated
+      ? full.subarray(0, MAX_RESPONSE_BYTES)
+      : full;
+    const { encoding, body: responseBody } = encodeBody(captured);
+
+    const responseHeaders: Record<string, string> = {};
+    res.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+
     return {
       target,
       status: res.status,
       durationMs: Math.round(performance.now() - start),
+      responseHeaders,
+      responseBody,
+      responseBodyEncoding: encoding,
+      responseTruncated,
     };
   } catch (err) {
     const timedOut =
