@@ -64,7 +64,12 @@ huk listen [options]            # start the capture server (main command)
   --content-type <type>         # response content-type (default text/plain)
   --no-store                    # don't persist
 
-huk list [-n <limit>]           # list captured requests (limit must be > 0)
+huk list [options]              # list captured requests
+  -n, --limit <n>               # show only the most recent N (must be > 0)
+  --method <method>             # filter by HTTP method (e.g. POST)
+  --path <substring>            # filter by path substring
+  --status <code>               # filter by response status code
+  --since <duration>            # only newer than e.g. 30s, 10m, 2h, 1d
 huk show <id> [--json]          # full detail of one request (--json for scripting)
 huk replay <id> --to <url>      # re-send a stored request
   [--timeout <ms>]              # replay timeout, default 30000

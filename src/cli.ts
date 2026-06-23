@@ -16,6 +16,21 @@ function positiveInt(value: string): number {
   return n;
 }
 
+/** Parse a duration like `30s`, `10m`, `2h`, `1d` into milliseconds. */
+function parseDuration(value: string): number {
+  const m = /^(\d+)(s|m|h|d)$/.exec(value.trim());
+  if (!m) {
+    throw new InvalidArgumentError("use e.g. 30s, 10m, 2h, 1d");
+  }
+  const units: Record<string, number> = {
+    s: 1_000,
+    m: 60_000,
+    h: 3_600_000,
+    d: 86_400_000,
+  };
+  return Number(m[1]) * units[m[2]!]!;
+}
+
 const program = new Command();
 
 program
@@ -66,7 +81,23 @@ program
   .command("list")
   .description("List persisted requests")
   .option("-n, --limit <n>", "show only the most recent N", positiveInt)
-  .action((opts) => runList({ limit: opts.limit }));
+  .option("--method <method>", "filter by HTTP method (e.g. POST)")
+  .option("--path <substring>", "filter by path substring")
+  .option("--status <code>", "filter by response status code", positiveInt)
+  .option(
+    "--since <duration>",
+    "only requests newer than e.g. 30s, 10m, 2h, 1d",
+    parseDuration,
+  )
+  .action((opts) =>
+    runList({
+      limit: opts.limit,
+      method: opts.method,
+      pathContains: opts.path,
+      status: opts.status,
+      sinceMs: opts.since,
+    }),
+  );
 
 program
   .command("show")
