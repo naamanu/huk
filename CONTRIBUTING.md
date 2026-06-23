@@ -21,6 +21,7 @@ Useful scripts:
 | `bun run dev -- <args>` | Run the CLI from source via `tsx` |
 | `bun run typecheck` | Type-check with `tsc --noEmit` |
 | `bun run build` | Bundle to `dist/` with `tsup` |
+| `bun run test` | Build, then run the end-to-end tests (`node --test`) |
 | `node dist/cli.js <args>` | Run the built CLI |
 
 ## Project layout
@@ -43,9 +44,9 @@ PR can merge. So:
 
 1. Branch off `main`: `git checkout -b fix/short-description`.
 2. Make your change. Keep it focused and match the surrounding style.
-3. Run `bun run typecheck` and `bun run build` locally before pushing.
-4. Open a pull request. CI (`typecheck` + `build` + a capture smoke test) runs
-   automatically and must be green to merge.
+3. Run `bun run typecheck` and `bun run test` locally before pushing.
+4. Open a pull request. CI (`typecheck` + `build` + the end-to-end test suite)
+   runs automatically and must be green to merge.
 5. PRs are **squash-merged** into a single commit, so `main` stays linear — no
    need to tidy your branch history yourself.
 
