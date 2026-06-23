@@ -13,26 +13,43 @@ request hit it in your terminal, and forward or replay them to your local app.
 - **Custom response** — control the status/body/content-type sent back
 - **Public URL** via `--tunnel` (uses an installed `ngrok`, falls back to `cloudflared`)
 
+## Requirements
+
+- **Node.js 20+**
+- Optional, only for `--tunnel`: [`ngrok`](https://ngrok.com/download) or
+  [`cloudflared`](https://github.com/cloudflare/cloudflared) on your `PATH`.
+
 ## Install
 
 ```sh
 npm install -g @naamanu/huk
+```
+
+## Quickstart
+
+```sh
+# 1. Start capturing on http://localhost:4000
 huk listen
+
+# 2. In another terminal, send something to it
+curl -X POST http://localhost:4000/hook \
+  -H 'content-type: application/json' \
+  -d '{"event":"ping"}'
 ```
 
-### From source
+The request appears in the `huk listen` terminal as a colored summary, and the
+sender gets back `200 ok`. Inspect it later with `huk list` and `huk show 1`.
+
+### Run from source
 
 ```sh
-bun install        # or npm install
+git clone https://github.com/naamanu/huk && cd huk
+bun install        # or: npm install
 bun run build
-npm link           # optional: makes `huk` available globally
+node dist/cli.js listen        # or `npm link` for a global `huk`
 ```
 
-Or run without building during development:
-
-```sh
-bun run dev -- listen --port 4000
-```
+During development you can skip the build with `bun run dev -- listen`.
 
 ## Usage
 
@@ -59,6 +76,7 @@ huk clear                       # wipe history
 huk listen --forward http://localhost:3000
 
 # Get a public URL so Stripe/GitHub can reach you
+# (requires ngrok or cloudflared installed; without one it stays local-only)
 huk listen --tunnel
 
 # Return a custom JSON response to senders
@@ -73,21 +91,22 @@ huk replay 1 --to http://localhost:3000
 ## How it works
 
 `huk listen` runs a Node `http` server. Each request is read (body capped at
-5 MB), printed as a colored one-line summary, optionally forwarded with `fetch`,
-and appended to an NDJSON file in `~/.huk/`. `--tunnel` shells out to `ngrok`
-(polling its local agent API at `127.0.0.1:4040`) or `cloudflared`.
+5 MB), printed as a colored one-line summary, optionally forwarded to your app
+with `fetch`, and — unless `--no-store` is set — appended as one JSON line to
+`~/.huk/requests.ndjson`. Each captured request gets a sequential id you can
+pass to `huk show` and `huk replay`.
 
-## Releasing
+With `--tunnel`, huk tries `ngrok` first (spawning it and polling its local
+agent API at `127.0.0.1:4040` for the public URL), then falls back to
+`cloudflared`. If neither binary is installed it prints an install hint and
+keeps running local-only. Note that `ngrok` needs a one-time
+`ngrok config add-authtoken <token>` (free account); `cloudflared` quick
+tunnels need no account.
 
-Publishing is automated via GitHub Actions (`.github/workflows/release.yml`):
+## Contributing
 
-1. Bump the version in `package.json` (e.g. `0.1.0` → `0.1.1`) and commit.
-2. Push, then create a **GitHub Release** with tag `v<version>` (e.g. `v0.1.1`).
-3. The workflow builds and runs `npm publish --provenance --access public`,
-   pushing `@naamanu/huk@<version>` to npm. The tag must match the
-   `package.json` version or the job fails.
-
-Requires an npm **Automation** token stored as the repo secret `NPM_TOKEN`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup and the PR workflow, and
+[RELEASING.md](RELEASING.md) for maintainer release steps.
 
 ## License
 
