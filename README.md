@@ -11,6 +11,7 @@ request hit it in your terminal, and forward or replay them to your local app.
 - **Persist** history to `~/.huk/requests.ndjson` so you can review later
 - **Replay** a stored request to any target by id
 - **Custom response** — control the status/body/content-type sent back
+- **Redaction** — sensitive headers (auth, cookies, API keys) show as `[redacted]` by default
 - **Public URL** via `--tunnel` (uses an installed `ngrok`, falls back to `cloudflared`)
 
 ## Requirements
@@ -70,7 +71,10 @@ huk list [options]              # list captured requests
   --path <substring>            # filter by path substring
   --status <code>               # filter by response status code
   --since <duration>            # only newer than e.g. 30s, 10m, 2h, 1d
-huk show <id> [--json]          # full detail of one request (--json for scripting)
+huk show <id>                   # full detail of one request
+  [--json]                      # raw record as JSON (for scripting)
+  [--no-redact]                 # reveal sensitive header values
+  [--redact-header <name...>]   # extra header name(s) to redact
 huk replay <id> --to <url>      # re-send a stored request
   [--timeout <ms>]              # replay timeout, default 30000
 huk clear                       # wipe history

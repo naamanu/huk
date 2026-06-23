@@ -476,6 +476,56 @@ test("binary bodies are stored as base64 and shown as a hex preview", async () =
   }
 });
 
+test("show redacts sensitive headers by default; --no-redact reveals them", async () => {
+  const home = await makeHome();
+  const server = await startListen([], home);
+  try {
+    await fetch(`${server.url}/s`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer secret-token",
+        "x-api-key": "key123",
+        "x-other": "fine",
+      },
+      body: "x",
+    });
+    await server.stop();
+
+    const redacted = await runCli(["show", "1"], home);
+    assert.match(redacted.stdout, /\[redacted\]/);
+    assert.doesNotMatch(redacted.stdout, /secret-token/);
+    assert.doesNotMatch(redacted.stdout, /key123/);
+    assert.match(redacted.stdout, /fine/); // non-sensitive header untouched
+
+    const raw = await runCli(["show", "1", "--no-redact"], home);
+    assert.match(raw.stdout, /secret-token/);
+    assert.match(raw.stdout, /key123/);
+
+    // --json is redacted by default too (secure default).
+    const json = await runCli(["show", "1", "--json"], home);
+    assert.equal(JSON.parse(json.stdout).headers.authorization, "[redacted]");
+
+    const jsonRaw = await runCli(["show", "1", "--json", "--no-redact"], home);
+    assert.equal(
+      JSON.parse(jsonRaw.stdout).headers.authorization,
+      "Bearer secret-token",
+    );
+
+    // Custom header redaction extends the default set.
+    const custom = await runCli(
+      ["show", "1", "--json", "--redact-header", "x-other"],
+      home,
+    );
+    assert.equal(JSON.parse(custom.stdout).headers["x-other"], "[redacted]");
+
+    // The stored record keeps the real value (so replay still works).
+    const [rec] = await readStore(home);
+    assert.equal(rec.headers.authorization, "Bearer secret-token");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("list filters by method, path, status, and since", async () => {
   const home = await makeHome();
   const server = await startListen([], home);

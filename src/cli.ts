@@ -104,7 +104,15 @@ program
   .description("Show full detail of a captured request")
   .argument("<id>", "request id (see `huk list`)")
   .option("--json", "print the raw record as JSON (for scripting)")
-  .action((id, opts) => runShow(id, { json: Boolean(opts.json) }));
+  .option("--no-redact", "show sensitive header values instead of [redacted]")
+  .option("--redact-header <name...>", "additional header name(s) to redact", [])
+  .action((id, opts) =>
+    runShow(id, {
+      json: Boolean(opts.json),
+      redact: opts.redact,
+      redactExtra: opts.redactHeader,
+    }),
+  );
 
 program
   .command("replay")
