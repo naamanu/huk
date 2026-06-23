@@ -24,26 +24,5 @@ jobs:
       - name: Build
         run: bun run build
 
-      - name: Smoke test
-        run: |
-          set -euo pipefail
-          node dist/cli.js --version
-
-          PORT=4799
-          node dist/cli.js listen --port "$PORT" --no-store > listen.log 2>&1 &
-          SRV=$!
-          # wait for the server to come up
-          for i in $(seq 1 20); do
-            if curl -sf -o /dev/null "http://localhost:$PORT/" 2>/dev/null; then break; fi
-            sleep 0.25
-          done
-          curl -s -o /dev/null -X POST "http://localhost:$PORT/smoke?ok=1" \
-            -H 'content-type: application/json' -d '{"hello":"world"}'
-          sleep 0.3
-          kill "$SRV" 2>/dev/null || true
-          wait "$SRV" 2>/dev/null || true
-
-          echo "--- listener output ---"
-          cat listen.log
-          grep -q "/smoke" listen.log
-          echo "Smoke test passed."
+      - name: Test
+        run: node --test

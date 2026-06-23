@@ -31,6 +31,7 @@
     "build": "tsup src/cli.ts --format esm --clean --target node20",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
+    "test": "bun run build && node --test",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
