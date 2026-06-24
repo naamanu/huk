@@ -13,7 +13,7 @@ import http from "node:http";
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -160,12 +160,16 @@ async function startHangingSink() {
   };
 }
 
-test("huk --version prints a semver", async () => {
+test("huk --version matches package.json", async () => {
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  );
   const home = await makeHome();
   try {
     const { code, stdout } = await runCli(["--version"], home);
     assert.equal(code, 0);
     assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
+    assert.equal(stdout.trim(), pkg.version);
   } finally {
     await rm(home, { recursive: true, force: true });
   }
