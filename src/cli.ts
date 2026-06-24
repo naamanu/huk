@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { Command, InvalidArgumentError } from "commander";
 import pc from "picocolors";
 import { runListen } from "./commands/listen.js";
@@ -6,6 +7,12 @@ import { runList } from "./commands/list.js";
 import { runShow } from "./commands/show.js";
 import { runReplay } from "./commands/replay.js";
 import { runClear } from "./commands/clear.js";
+
+// Read the version from package.json so it can never drift from the published
+// version. `../package.json` resolves from dist/cli.js (built) and src/cli.ts (dev).
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
 
 /** Commander argument parser: accept only positive integers. */
 function positiveInt(value: string): number {
@@ -36,7 +43,7 @@ const program = new Command();
 program
   .name("huk")
   .description("Capture, inspect, forward and replay webhook requests.")
-  .version("0.1.0");
+  .version(version);
 
 program
   .command("listen")

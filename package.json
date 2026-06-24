@@ -1,6 +1,6 @@
 {
   "name": "@naamanu/huk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A simple CLI to capture, inspect, forward and replay webhook requests (a tiny usewebhook.com).",
   "type": "module",
   "author": "Nana Adjei Manu",
